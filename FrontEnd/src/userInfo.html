@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- import CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <link rel="stylesheet" href="../css/userInfo.css">
+    <link rel="icon" href="http://png.weweztms.cn/icon.png" type="image/x-icon" />
+    <title>UWL Volunteer Org</title>
+</head>
+<!-- import Vue before Element -->
+<script src="https://unpkg.com/vue/dist/vue.js"></script>
+<!-- import JavaScript -->
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script src="https://unpkg.com/element-ui/lib/umd/locale/en.js"></script>
+<body>
+<div id="app">
+    <el-container class="body">
+        <el-header class="head">
+            <h3 class="title">Welcome! Your role status is {{role}}</h3>
+            <div class="user-link">
+                <el-link :underline="false" class="el-link" href="../src/index.html">Return Home</el-link>
+                <el-link :underline="false" @click.native="logout" href="../src/index.html" class="el-link">Logout
+                </el-link>
+            </div>
+        </el-header>
+        <el-container class="body-container">
+            <el-aside>
+                <el-menu
+                        class="aside-menu"
+                        default-active="1"
+                        @select="indexChange"
+                        ref="navbar"
+                        background-color="white"
+                        text-color="black"
+                        active-text-color="blue"
+                >
+                    <el-menu-item index="1">
+                        <template #title>
+                            Personal Profile
+                        </template>
+                    </el-menu-item>
+                    <el-menu-item index="2" v-if="role=='Admin'"@click="getUserList">
+                        <template #title>
+                            User Management
+                        </template>
+                    </el-menu-item>
+                    <el-menu-item index="3" v-if="role=='Admin'"@click="getEventList">
+                        <template #title>
+                            Event Management
+                        </template>
+                    </el-menu-item>
+                    <el-menu-item index="4" v-if="role=='Admin'"@click="getProgramList">
+                        <template #title>
+                            Program Management
+                        </template>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            <el-main>
+                <div class="user-profile" v-if="currentIndex=='1'">
+                    <div class="edit-info">
+                        <div class="my-info">
+                            <span>User name: {{myInfo.lastName + " " + myInfo.firstName}}</span><br>
+                        </div><br>
+                        <div class="my-info">
+                            <span>User id: {{myInfo.userId}}</span><br>
+                        </div><br>
+                        <div class="my-info">
+                            <span>User role: {{myInfo.role}}</span><br>
+                        </div><br>
+                        <div class="my-info" v-if="myInfo.role=='Volunteer'">
+                            <span>Volunteer time: {{myInfo.volunteerTime}} hours</span><br>
+                        </div><br>
+                        <div class="my-info" v-if="myInfo.role=='Donor'">
+                            <span>Donation Amount: ${{myInfo.donationAmount}}</span><br>
+                        </div><br>
+                        <div class="button-group">
+                            <el-button size="medium" @click="openEditMyInfoDialog">Edit info</el-button>
+                            <el-button size="medium" @click="openEditPasswordDialog">Edit password</el-button>
+                        </div>
+                        <!--Edit my info dialog-->
+                        <el-dialog title="Edit my info" :v-if="editMyInfoDialogVisible" :visible.sync="editMyInfoDialogVisible" :append-to-body="true">
+                            <el-form :model="myInfoSubmitted" :rules="myInfoRule" ref="myInfo">
+                                <el-form-item label="User ID:">
+                                    <el-input v-model="user" :disabled="true"></el-input>
+                                </el-form-item>
+                                <el-form-item label="First name:" prop="firstName">
+                                    <el-input v-model="myInfoSubmitted.firstName"></el-input>
+                                </el-form-item>
+                                <el-form-item label="Last name:" prop="lastName">
+                                    <el-input v-model="myInfoSubmitted.lastName"></el-input>
+                                </el-form-item>
+                            </el-form>
+                            <el-button @click="editMyInfo">Submit</el-button>
+                            <el-button @click="closeEditMyInfoDialog">Exit</el-button>
+                        </el-dialog>
+
+                        <!--Edit password dialog-->
+                        <el-dialog title="Edit my password" :visible.sync="editPasswordDialogVisible"
+                                   :append-to-body="true">
+                            <el-form :model="passwordForm" :rules="passwordFormRule">
+                                <el-form-item label="User ID:" disabled="true">
+                                    <el-input v-model="user"></el-input>
+                                </el-form-item>
+                                <el-form-item label="Password:" prop="password">
+                                    <el-input placeholder="Input your password" show-password
+                                              v-model="passwordForm.password"></el-input>
+                                </el-form-item>
+                                <el-form-item label="New password:" prop="newPassword">
+                                    <el-input placeholder="Input your new password" show-password
+                                              v-model="passwordForm.newPassword"></el-input>
+                                </el-form-item>
+                                <el-form-item label="Confirm password:" prop="confirmPassword">
+                                    <el-input placeholder="Confirm your new password" show-password
+                                              v-model="passwordForm.confirmPassword"></el-input>
+                                </el-form-item>
+                            </el-form>
+                            <el-button @click="editMyPassword">Submit</el-button>
+                            <el-button @click="closeEditPasswordDialog">Exit</el-button>
+                        </el-dialog>
+                    </div>
+                </div>
+                <div class="user-management" v-if="currentIndex=='2'">
+                    <el-select v-model="userQuery.role" placeholder="Select role" clearable>
+                        <el-option
+                                v-for="item in roleList"
+                                :key="item"
+                                :label="item"
+                                :value="item"
+                        >
+                        </el-option>
+                    </el-select>
+                    <el-button @click="queryUser" type="primary">Query</el-button>
+                    <el-table
+                            :data="userList"
+                            style="width:100%"
+                            :fit="false"
+                            fit
+                            :v-loading="userListLoading"
+                            row-key="id"
+                            border
+                            highlight-current-row
+                    >
+                        <el-table-column
+                                label="User ID"
+                                align="center"
+                                min-width="20%">
+                            <template slot-scope="{row}">
+                                <span>{{row.userId}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="User Name"
+                                align="center"
+                                min-width="20%">
+                            <template slot-scope="{row}">
+                                <span>{{row.lastName + " " + row.firstName}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Role"
+                                align="center"
+                                min-width="10%">
+                            <template slot-scope="{row}">
+                                <span>{{row.role}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Status"
+                                align="center"
+                                min-width="10%">
+                            <template slot-scope="{row}">
+                                <span>{{statusList[row.status]}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Operations"
+                                align="center"
+                                min-width="40%">
+                            <template slot-scope="{row}">
+                                <el-link type="primary" @click="openEditUserDialog(row)" :underline="false">Edit
+                                </el-link>
+                                <!--edit user info detail-->
+                                <el-dialog :visible.sync="editUserDialogVisible" :inline="true" title="Edit user">
+                                    <el-form v-model="userInfo">
+                                        <el-form-item label="User ID:" disabled="true">
+                                            <el-input v-model="userInfo.userId"></el-input>
+                                        </el-form-item>
+
+                                        <el-form-item label="First name:">
+                                            <el-input v-model="userInfo.firstName"></el-input>
+                                        </el-form-item>
+
+                                        <el-form-item label="Last name:">
+                                            <el-input v-model="userInfo.lastName"></el-input>
+                                        </el-form-item>
+
+                                        <el-form-item label="Role:">
+                                            <el-select v-model="userInfo.role">
+                                                <el-option
+                                                        v-for="item in roleList"
+                                                        :key="item"
+                                                        :label="item"
+                                                        :value="item">
+                                                </el-option>
+                                            </el-select>
+                                        </el-form-item>
+                                    </el-form>
+                                    <el-divider></el-divider>
+                                    <el-button @click="editUser">Save</el-button>
+                                </el-dialog>
+
+                                <el-divider direction="vertical"></el-divider>
+                                <el-link type="primary" :underline="false" @click="openUserDetailDialog(row)"
+                                         v-if="row.role!='Admin'">
+                                    Detail
+                                </el-link>
+                                <!--display selected user's detail-->
+                                <el-dialog :visible.sync="userDetailDialogVisible" width="40%" title="User detail">
+                                    <span>Role: {{userInfo.role}}</span>
+                                    <div v-if="userInfo.role=='Donor'">
+                                        <span>Total donation amount: ${{userInfo.donationAmount}}</span>
+                                        <el-table :data="userInfo.donationInfo" width="100%">
+                                            <el-table-column
+                                                    label="Donated ID"
+                                                    align="center"
+                                                    min-width="25%">
+                                                <template slot-scope="{row}">
+                                                    <span>{{row.id}}</span>
+                                                </template>
+                                            </el-table-column>
+                                            
+                                            <el-table-column
+                                                    label="Donation time"
+                                                    align="center"
+                                                    min-width="25%">
+                                                <template slot-scope="{row}">
+                                                    <span>{{row.donor_time}}</span>
+                                                </template>
+                                            </el-table-column>
+                                            <el-table-column
+                                                    label="Donation amount"
+                                                    align="center"
+                                                    min-width="25%">
+                                                <template slot-scope="{row}">
+                                                    <span>{{row.amount}}</span>
+                                                </template>
+                                            </el-table-column>
+                                        </el-table>
+                                    </div>
+
+                                    <div v-if="userInfo.role=='Volunteer'">
+                                        <span>Total volunteer time: {{userInfo.volunteerTime}} hours</span>
+                                        <el-table :data="userInfo.volunteerEvents" width="100%">
+                                            <el-table-column
+                                                    label="Event ID"
+                                                    align="center"
+                                                    min-width="20%">
+                                                <template slot-scope="{row}">
+                                                    <span>{{row.id}}</span>
+                                                </template>
+                                            </el-table-column>
+                                            
+                                            <el-table-column
+                                                    label="Start time"
+                                                    align="center"
+                                                    min-width="20%">
+                                                <template slot-scope="{row}">
+                                                    <span>{{row.time_start}}</span>
+                                                </template>
+                                            </el-table-column>
+                                            <el-table-column
+                                                    label="End time"
+                                                    align="center"
+                                                    min-width="20%">
+                                                <template slot-scope="{row}">
+                                                    <span>{{row.time_end}}</span>
+                                                </template>
+                                            </el-table-column>
+                                            <el-table-column
+                                                    label="Duty"
+                                                    align="center"
+                                                    min-width="20%">
+                                                <template slot-scope="{row}">
+                                                    <span>{{row.duty}}</span>
+                                                </template>
+                                            </el-table-column>
+                                        </el-table>
+                                    </div>
+                                </el-dialog>
+                                <el-divider direction="vertical" v-if="row.role!='Admin'"></el-divider>
+                                <el-link type="primary" :underline="false" @click="deleteUser(row)"
+                                         v-if="row.status!='2'">
+                                    Delete
+                                </el-link>
+                                <el-link type="primary" :underline="false" @click="recoverUser(row)"
+                                         v-if="row.status=='2'">
+                                    Recover
+                                </el-link>
+                                <el-divider direction="vertical"></el-divider>
+                                <el-link type="primary" :underline="false" @click="frozeUser(row)"
+                                         v-if="row.status!='1'">
+                                    Froze
+                                </el-link>
+                                <el-link type="primary" :underline="false" @click="unfrozeUser(row)"
+                                         v-if="row.status=='1'">
+                                    Unfroze
+                                </el-link>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+                <div class="event-management" v-if="currentIndex=='3'">
+                    <el-table :data="allEventList">
+                        <el-table-column
+                                label="Event ID"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{row.eventId}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Title"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{row.title}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Status"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{eventStatus[row.status]}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Start time"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{row.startTime}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="End time"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{row.endTime}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Required volunteers number"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{row.requiredVolunteersNumber}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Volunteers number so far"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{row.volunteersNumberSoFar}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Amount of fund"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>${{row.amountOfFund}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Operations"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <el-link type="primary" :underline="false" @click="openEventDetailDialog(row)">
+                                    Detail
+                                </el-link>
+                                <el-dialog :visible.sync="eventDetailDialogVisible" title="Event detail">
+                                    <el-table
+                                            :data="eventDetail.volunteersInfo"
+                                            style="width:100%;margin-bottom: 30px"
+                                            :fit="false"
+                                            fit
+                                            :v-loading="userListLoading"
+                                            row-key="id"
+                                            border
+                                            highlight-current-row
+                                    >
+                                        <el-table-column
+                                                label="Volunteer ID"
+                                                align="center"
+                                                min-width="50%">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.user_id}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Volunteer Duty"
+                                                align="center"
+                                                min-width="25%">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.duty}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Volunteer Status"
+                                                align="center"
+                                                min-width="25%">
+                                            <template slot-scope="{row}">
+                                                <span>{{eventStatus[row.status]}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Operation"
+                                                align="center"
+                                                min-width="25%">
+                                            <template slot-scope="{row}">
+                                                <el-link type="primary" :underline="false" @click="deleteVolunteerFromEvent(row)">
+                                                    Delete
+                                                </el-link>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                    <el-table
+                                    :data="eventDetail.donorsInfo"
+                                    style="width:100%"
+                                    :fit="false"
+                                    fit
+                                    :v-loading="userListLoading"
+                                    row-key="id"
+                                    border
+                                    highlight-current-row
+                            >
+                                <el-table-column
+                                        label="Donor ID"
+                                        align="center"
+                                        min-width="50%">
+                                    <template slot-scope="{row}">
+                                        <span>{{row.donor_id}}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column
+                                        label="Time"
+                                        align="center"
+                                        min-width="25%">
+                                    <template slot-scope="{row}">
+                                        <span>{{row.donor_time}}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column
+                                        label="Donated amount"
+                                        align="center"
+                                        min-width="25%">
+                                    <template slot-scope="{row}">
+                                        <span>{{row.amount}}</span>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </el-dialog>
+                                <el-divider direction="vertical"></el-divider>
+                                <el-link type="primary" :underline="false" @click="finishEvent(row)" v-if="row.status=='0'">
+                                    Finish
+                                </el-link>
+                                <el-divider direction="vertical"></el-divider>
+                                <el-link type="primary" :underline="false" @click="deleteEvent(row)" v-if="row.status=='0'">
+                                    Delete
+                                </el-link>
+                                <el-divider direction="vertical"></el-divider>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+                <div class="program-management" v-if="currentIndex=='4'">
+                    <el-button type="primary" @click="openCreateProgramDialog">Create program</el-button>
+                    <el-table :data="programList">
+                        <el-table-column
+                                label="Program ID"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{row.programId}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Title"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{row.title}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Status"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>{{eventStatus[row.status]}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Amount of fund"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <span>${{row.amountOfFund}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                                label="Operations"
+                                align="center"
+                                min-width="100px">
+                            <template slot-scope="{row}">
+                                <el-link type="primary" :underline="false" @click="openEventsInfoDialog(row)">
+                                    Events info
+                                </el-link>
+                                <el-dialog :visible.sync="eventsInfoDialogVisible" title="Events info">
+                                    <el-button type="primary" @click="openCreateEventDialog">Create event</el-button>
+                                    <el-dialog :append-to-body="true" :visible.sync="createEventDialogVisible" title="Create new event">
+                                        <el-form v-model="newEvent">
+                                            <el-form-item label="Title:">
+                                                <el-input placeholder="Input the event's title" v-model="newEvent.title"></el-input>
+                                            </el-form-item>
+
+                                            <el-form-item label="Start time:">
+                                                <el-date-picker
+                                                        v-model="newEvent.startTime"
+                                                        type="datetime"
+                                                        placeholder="Select start time"
+                                                        :picker-options="pickerOptions"
+                                                >
+                                                </el-date-picker>
+                                            </el-form-item>
+
+                                            <el-form-item label="End time:">
+                                                <el-date-picker
+                                                        v-model="newEvent.endTime"
+                                                        type="datetime"
+                                                        placeholder="Select end time"
+                                                        :picker-options="pickerOptions"
+                                                >
+                                                </el-date-picker>
+                                            </el-form-item>
+
+                                            <el-form-item label="Place:">
+                                                <el-input placeholder="Input holding place" v-model="newEvent.place">
+                                                </el-input>
+                                            </el-form-item>
+
+                                            <el-form-item label="Required volunteers number:">
+                                                <el-input-number v-model="newEvent.requiredVolunteersNumber" :min="1" :max="1000">
+                                                </el-input-number>
+                                            </el-form-item>
+
+                                            <el-form-item label="Description:">
+                                                <el-input placeholder="Input description" v-model="newEvent.description"
+                                                          type="textarea">
+                                                </el-input>
+                                            </el-form-item>
+
+                                        </el-form>
+                                        <el-divider></el-divider>
+                                        <el-button @click="createNewEvent">Save</el-button>
+                                    </el-dialog>
+                                    <el-table :data="eventList">
+                                        <el-table-column
+                                                label="Event ID"
+                                                align="center"
+                                                min-width="100px">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.eventId}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Title"
+                                                align="center"
+                                                min-width="100px">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.title}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Status"
+                                                align="center"
+                                                min-width="100px">
+                                            <template slot-scope="{row}">
+                                                <span>{{eventStatus[row.status]}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Start time"
+                                                align="center"
+                                                min-width="100px">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.startTime}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="End time"
+                                                align="center"
+                                                min-width="100px">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.endTime}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Required volunteers number"
+                                                align="center"
+                                                min-width="100px">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.requiredVolunteersNumber}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Volunteers number so far"
+                                                align="center"
+                                                min-width="100px">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.volunteersNumberSoFar}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Amount of fund"
+                                                align="center"
+                                                min-width="100px">
+                                            <template slot-scope="{row}">
+                                                <span>${{row.amountOfFund}}</span>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </el-dialog>
+                                <el-divider direction="vertical"></el-divider>
+                                <el-link type="primary" :underline="false" @click="openDonorsInfoDialog(row)">
+                                    Donors info
+                                </el-link>
+                                <el-dialog :visible.sync="donorsInfoDialogVisible" title="Donors donated the program">
+                                    <el-table
+                                            :data="donorsListOfTheProgram"
+                                            style="width:100%"
+                                            :fit="false"
+                                            fit
+                                            :v-loading="userListLoading"
+                                            row-key="id"
+                                            border
+                                            highlight-current-row
+                                    >
+                                        <el-table-column
+                                                label="User ID"
+                                                align="center"
+                                                min-width="50%">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.userId}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="User Name"
+                                                align="center"
+                                                min-width="25%">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.lastName + " " + row.firstName}}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column
+                                                label="Donated amount"
+                                                align="center"
+                                                min-width="25%">
+                                            <template slot-scope="{row}">
+                                                <span>{{row.donationAmount}}</span>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </el-dialog>
+
+                                <el-divider direction="vertical"></el-divider>
+                                
+                                <el-dialog :visible.sync="editEventsDialogVisible" title="Edit events the program owned">
+                                    <el-select></el-select>
+                                </el-dialog>
+
+                                <el-divider direction="vertical"></el-divider>
+                                <el-link type="primary" :underline="false" @click="deleteTheProgram(row)"
+                                         v-if="row.status!='2'">
+                                    Delete
+                                </el-link>
+                                <el-link type="primary" :underline="false" @click="recoverProgram(row)"
+                                         v-if="row.status=='2'">
+                                    Recover
+                                </el-link>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    <el-dialog :visible.sync="createProgramDialogVisible" title="Create new program">
+
+                        <el-form v-model="newProgram">
+                            <el-form-item label="Title:">
+                                <el-input placeholder="Input the program's title" v-model="newProgram.title"></el-input>
+                            </el-form-item>
+                        </el-form>
+                        <el-divider></el-divider>
+                        <el-button @click="createNewProgram">Create</el-button>
+
+                    </el-dialog>
+                </div>
+            </el-main>
+        </el-container>
+    </el-container>
+</div>
+</body>
+<script type="module">
+    ELEMENT.locale(ELEMENT.lang.en)
+    import {editName, editStatus, editPassword, editRole} from "../js/api/user.js";
+    import {createProgram} from "../js/api/event.js";
+    var confirmPasswordValidator = (rule, value, callback)=>{
+        if (value.length==0){
+            callback(new Error('Please confirm your password!'))
+        }
+        else {
+            if ((value.length < 6) || (value.length > 15)) {
+                callback(new Error('The length should be between 6 and 15!'))
+            } else {
+                if (value != app.passwordForm.newPassword) {
+                    callback(new Error('Entered passwords differ!'))
+                } else {
+                    callback()
+                }
+            }
+        }
+    }
+    const url = "http://127.0.0.1:8000"
+    let app = new Vue({
+        el: '#app',
+        data: function () {
+            return { 
+                user: localStorage.getItem("user"),
+                role: localStorage.getItem("role"),
+                roleList: ["Admin", "Donor", "Volunteer"],
+                userQuery: {
+                    role: ""
+                },
+                currentIndex: '1',
+                editMyInfoDialogVisible: false,//edit user's own info dialog
+                editPasswordDialogVisible: false,//edit user's own password dialog
+                newName: "",
+                newPassword: "",
+                userListLoading: false,
+                userList: [],//List of users
+                allUserList: [],
+                donorsListOfTheProgram: [],
+                eventList: [],
+                allEventList: [],
+                programList: [],
+                volunteerEvents: [],//List of every events including doing and be done
+                eventDetail: {},
+                myInfo: {},
+                myInfoSubmitted:{
+                },
+                myInfoRule: {
+                    firstName: [
+                        { required: true, message: 'Please input your first name!', trigger: 'blur' },
+                        { min: 1, max: 30, message: 'The length should be between 1 and 30!', trigger: 'blur' }
+                    ],
+                    lastName: [
+                        { required: true, message: 'Please input your last name!', trigger: 'blur' },
+                        { min: 1, max: 30, message: 'The length should be between 1 and 30!', trigger: 'blur' }
+                    ],
+                },
+                passwordForm: {
+                    id: localStorage.getItem("user"),
+                    password: "",
+                    newPassword: "",
+                    confirmPassword: ""
+                },
+                passwordFormRule:{
+                    password: [
+                        { required: true, message: 'Please input your password!', trigger: 'blur' },
+                        { min: 6, max: 15, message: 'The length should be between 6 and 15!', trigger: 'blur' }
+                    ],
+                    newPassword: [
+                        { required: true, message: 'Please input your new password!', trigger: 'blur' },
+                        { min: 6, max: 15, message: 'The length should be between 6 and 15!', trigger: 'blur' }
+                    ],
+                    confirmPassword: [
+                        { required: true, validator: confirmPasswordValidator, trigger: 'blur' },
+                    ],
+                },
+                userInfo: {
+                    userId: "",
+                    firstName: "",
+                    lastName: "",
+                    role: "",
+                    volunteerTime: "",
+                    volunteerEvents: [],
+                    donationAmount: "",
+                    donationInfo: [],
+                    status: "0",
+                },
+                currentProgramId: '',
+                newEvent: {
+                    eventId: undefined,
+                    title: undefined,
+                    startTime: undefined,
+                    endTime: undefined,
+                    place: undefined,
+                    amountOfFund: undefined,
+                    requiredVolunteersNumber: 1,
+                    volunteersNumberSoFar: 0,
+                    description: "",
+                    status: "0",
+                    programBelongsTo: undefined,
+                    volunteersInfo: [],
+                    donorsInfo: []
+                },
+                newProgram: {
+                    programId: undefined,
+                    event: [],
+                    title: undefined,
+                    amountOfFund: 0,
+                    status: "0",
+                    donorsInfo: []
+                },
+                statusList: {
+                    "0": "normal",
+                    "1": "frozen",
+                    "2": "deleted"
+                },
+                eventStatus: {
+                    "0": "normal",
+                    "1": "finished",
+                    "2": "deleted/canceled"
+                },
+                pickerOptions: {
+　　                disabledDate: (time) => {
+　　　                 return time.getTime() < Date.now() + 8.64e7
+　　                }
+　              },  
+                editUserDialogVisible: false,
+                userDetailDialogVisible: false,
+                createEventDialogVisible: false,
+                createProgramDialogVisible: false,
+                eventsInfoDialogVisible: false,
+                donorsInfoDialogVisible: false,
+                editEventsDialogVisible: false,
+                eventDetailDialogVisible : false
+            }
+        },
+        methods: {
+            getUserList(){
+                if(window.XMLHttpRequest){
+                    var httpRequest2 = new XMLHttpRequest();
+                }else{
+                    var httpRequest2 = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest2.open('GET', url + '/user/getalluser/', true);
+                httpRequest2.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest2.setRequestHeader("token", localStorage.getItem('token'));
+                let code = 200
+                let msg = ""
+                httpRequest2.send(null)
+                httpRequest2.onreadystatechange = function () {
+                    if (httpRequest2.readyState == 4 && httpRequest2.status == 200) {
+                        var json = JSON.parse(httpRequest2.responseText);
+                        code = json.code
+                        msg = json.msg
+                        app._data.userList = []
+                        app._data.allUserList = []
+                        json.data.forEach(item=>{
+                            app._data.userList.push({
+                                userId: item.id,
+                                firstName: item.firstName,
+                                lastName: item.lastName,
+                                role: item.role,
+                                volunteerTime: item.volunteerTime,
+                                volunteerEvents: item.volunteerEvents,
+                                donationAmount: item.donationAmount,
+                                donationInfo: item.donationInfo,
+                                status: item.status})
+                            app._data.allUserList.push({
+                                userId: item.id,
+                                firstName: item.firstName,
+                                lastName: item.lastName,
+                                role: item.role,
+                                volunteerTime: item.volunteerTime,
+                                volunteerEvents: item.volunteerEvents,
+                                donationAmount: item.donationAmount,
+                                donationInfo: item.donationInfo,
+                                status: item.status})      
+                        })
+                    }
+                }
+            },
+            getProgramList(){
+                //getProgramList
+                if(window.XMLHttpRequest){
+                    var httpRequest2 = new XMLHttpRequest();
+                }else{
+                    var httpRequest2 = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest2.open('GET', url + '/event/allprogram/', true);
+                httpRequest2.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest2.setRequestHeader("token", localStorage.getItem('token'));
+                let code = 200
+                let msg = ""
+                httpRequest2.send(null)
+                httpRequest2.onreadystatechange = function () {
+                    if (httpRequest2.readyState == 4 && httpRequest2.status == 200) {
+                        var json = JSON.parse(httpRequest2.responseText);
+                        code = json.code
+                        msg = json.msg
+                        app._data.programList = []
+                        json.data.forEach(item=>{
+                            app._data.programList.push({
+                                programId: item.id,
+                                event: item.event,
+                                title: item.title,
+                                amountOfFund: item.amount_of_fund,
+                                status: item.status,
+                                donorsInfo: item.info_donor})
+                        })
+                    }
+                }
+            },
+            getEventList(){
+                if(window.XMLHttpRequest){
+                    var httpRequest3 = new XMLHttpRequest();
+                    }else{
+                        var httpRequest3 = new ActiveXObject("Microsoft.XMLHTTP");
+                    };
+                httpRequest3.open('POST', url + '/event/allevent/', true);
+                httpRequest3.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest3.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify({id: "1"})
+                httpRequest3.send(para)
+                let code = 200
+                let msg = ""
+                httpRequest3.onreadystatechange = function () {
+                    if (httpRequest3.readyState == 4 && httpRequest3.status == 200) {
+                        var json = JSON.parse(httpRequest3.responseText);
+                        code = json.code
+                        msg = json.msg
+                        app._data.allEventList = []
+                        if(JSON.stringify(json.data) == "{}"){}
+                        else{
+                            json.data.forEach(item=>{
+                            app._data.allEventList.push({
+                                eventId: item.id,
+                                title: item.title,
+                                startTime: item.start,
+                                endTime: item.end,
+                                place: item.place,
+                                amountOfFund: item.amount_of_fund,
+                                requiredVolunteersNumber: item.require_volunteers_number,
+                                volunteersNumberSoFar: item.now_volunteers_number,
+                                description: item.description,
+                                status: item.status,
+                                programBelongsTo: item.program,
+                                volunteersInfo: item.info_volunteer,
+                                donorsInfo: item.info_donor})
+                            })
+                        } 
+                        
+                    }
+                }
+            },
+            logout() {
+                localStorage.removeItem("user")
+                localStorage.removeItem("role")
+            },
+            ifShow(role) {
+                if (role == this.role) {
+                    return true
+                } else {
+                    return false
+                }
+            },
+            indexChange(index) {
+                this.currentIndex = index
+            },
+            openEditMyInfoDialog() {
+                this.myInfoSubmitted = JSON.parse(JSON.stringify(this.myInfo))
+                this.editMyInfoDialogVisible = true
+            },
+            openEditPasswordDialog() {
+                this.editPasswordDialogVisible = true
+            },
+            editMyInfo() {
+                let data = {first_name: this.userInfo.firstName, last_name: this.userInfo.lastName}
+                var para = JSON.stringify(data)
+
+                if(window.XMLHttpRequest){
+                    var httpRequest3 = new XMLHttpRequest();
+                    }else{
+                        var httpRequest3 = new ActiveXObject("Microsoft.XMLHTTP");
+                    };
+                httpRequest3.open('POST', url + '/user/changeinformation/', true);
+                httpRequest3.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest3.setRequestHeader("token", localStorage.getItem('token'));
+                httpRequest3.send(para)
+                let code = 200
+                let msg = ""
+                httpRequest3.onreadystatechange = function () {
+                    if (httpRequest3.readyState == 4 && httpRequest3.status == 200) {
+                        var json = JSON.parse(httpRequest3.responseText);
+                        code = json.code
+                        msg = json.msg
+                        if(code == 200){
+                            app.$message.success('Edit user info successfully!')
+                        }
+                        else{
+                            app.$message.error('Operation failed!')
+                        }
+                    }
+                }
+            },
+            editMyPassword() {
+                
+                let data = {id: this.passwordForm.id,password: this.passwordForm.password, new_password: this.passwordForm.newPassword}
+                var para = JSON.stringify(data)
+
+                if(window.XMLHttpRequest){
+                    var httpRequest3 = new XMLHttpRequest();
+                    }else{
+                        var httpRequest3 = new ActiveXObject("Microsoft.XMLHTTP");
+                    };
+                httpRequest3.open('POST', url + '/user/changepassword/', true);
+                httpRequest3.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest3.setRequestHeader("token", localStorage.getItem('token'));
+                httpRequest3.send(para)
+                let code = 200
+                let msg = ""
+                httpRequest3.onreadystatechange = function () { 
+                    if (httpRequest3.readyState == 4 && httpRequest3.status == 200) {  
+                        var json = JSON.parse(httpRequest3.responseText);   
+                        code = json.code
+                        msg = json.msg
+                        if(code == 200){
+                            app.$message.success('Edit password successfully!')
+                            localStorage.removeItem("user")
+                            localStorage.removeItem("role")
+                        }
+                        else{
+                            app.$message.error('Operation failed!')
+                        }
+                        app._data.editPasswordDialogVisible = false
+                    }
+                }
+            },
+            closeEditMyInfoDialog() {
+                this.editMyInfoDialogVisible = false
+            },
+            closeEditPasswordDialog() {
+                this.editPasswordDialogVisible = false
+            },
+            // User management part
+            queryUser(){
+                this.userListLoading = true
+                this.userList = []
+                this.allUserList.forEach(user=>{
+                    if ((user.role==this.userQuery.role) || (this.userQuery.role == "")){
+                        this.userList.push(user)
+                    }
+                })
+                this.userListLoading = false
+            },
+            openEditUserDialog(row) {
+                this.userInfo = row
+                this.editUserDialogVisible = true
+            },
+            editUser() {
+
+                let data = {id: this.userInfo.userId,first_name: this.userInfo.firstName, last_name: this.userInfo.lastName, role: this.userInfo.role}
+                var para = JSON.stringify(data)
+
+                if(window.XMLHttpRequest){
+                    var httpRequest3 = new XMLHttpRequest();
+                    }else{
+                        var httpRequest3 = new ActiveXObject("Microsoft.XMLHTTP");
+                    };
+                httpRequest3.open('POST', url + '/user/permission/', true);
+                httpRequest3.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest3.setRequestHeader("token", localStorage.getItem('token'));
+                httpRequest3.send(para)
+                let code = 200
+                let msg = ""
+                httpRequest3.onreadystatechange = function () { 
+                    if (httpRequest3.readyState == 4 && httpRequest3.status == 200) {  
+                        var json = JSON.parse(httpRequest3.responseText);   
+                        code = json.code
+                        msg = json.msg
+                        if(code == 200){
+                            app.$message.success('Edit user info successfully!')
+                        }
+                        else{
+                            app.$message.error('Operation failed!')
+                        }
+                    }
+                }
+            },
+            openUserDetailDialog(row) {
+                let user_id = row.userId
+                let data = {id: user_id}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/user/getuser/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.userInfo = {
+                                userId: json.data.id,
+                                firstName: json.data.first_name,
+                                lastName: json.data.last_name,
+                                role: json.data.role,
+                                volunteerTime: json.data.working_hours,
+                                volunteerEvents: json.data.event_joined,
+                                donationAmount: json.data.donor_amount,
+                                donationInfo: json.data.donor_information,
+                                status: json.data.status,
+                            }
+                        }
+                    }
+                }
+                this.userDetailDialogVisible = true
+            },
+            deleteUser(row) {
+                let target = row.userId
+                let data = {'id': target, status: '2'}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/user/status/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Delete User successfully!')
+                        }
+                    }
+                }
+            },
+            recoverUser(row) {
+                let target = row.userId
+                let data = {'id': target, status: '0'}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/user/status/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Recover User successfully!')
+                        }
+                    }
+                }
+            },
+            frozeUser(row) {
+                let target = row.userId
+                let data = {'id': target, status: '1'}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/user/status/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Froze User successfully!')
+                        }
+                    }
+                }
+            },
+            unfrozeUser(row) {
+                let target = row.userId
+                let data = {'id': target, status: '0'}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/user/status/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Unfroze User successfully!')
+                        }
+                    }
+                }
+            },
+            //Event management part
+            openCreateEventDialog() {
+                this.newEvent = {
+                    eventId: undefined,
+                    title: undefined,
+                    startTime: undefined,
+                    endTime: undefined,
+                    place: undefined,
+                    amountOfFund: undefined,
+                    requiredVolunteersNumber: undefined,
+                    volunteersNumberSoFar: 0,
+                    description: "",
+                    status: "0",
+                    programBelongsTo: undefined,
+                    volunteersInfo: [],
+                    donorsInfo: []
+                }
+                this.createEventDialogVisible = true
+            },
+            createNewEvent() {
+                if(window.XMLHttpRequest){
+                    var httpRequest3 = new XMLHttpRequest();
+                    }else{
+                        var httpRequest3 = new ActiveXObject("Microsoft.XMLHTTP");
+                    };
+                httpRequest3.open('POST', url + '/event/newevent/', true);
+                httpRequest3.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest3.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify({program_id: this.currentProgramId, title: this.newEvent.title,
+                    place : this.newEvent.place,
+                    require_volunteers_number : this.newEvent.requiredVolunteersNumber + "",  // 字符串形式的整数
+                    description : this.newEvent.description,
+                    start : this.newEvent.startTime, // '%Y-%m-%d %H:%M:%S'
+                    end : this.newEvent.endTime,})
+                httpRequest3.send(para)
+                let code = 200
+                let msg = ""
+                httpRequest3.onreadystatechange = function () { 
+                    if (httpRequest3.readyState == 4 && httpRequest3.status == 200) {  
+                        var json = JSON.parse(httpRequest3.responseText);   
+                        code = json.code
+                        msg = json.msg 
+                        if (code == 200){
+                            app.$message.success('Create event successfully!')
+                            app._data.createEventDialogVisible = false   
+                        }    
+                          
+                    }
+                }
+                
+            },
+            //Program management part
+            openCreateProgramDialog(){
+                this.newProgram = {
+                    programId: undefined,
+                    event: [],
+                    title: undefined,
+                    amountOfFund: 0,
+                    status: "0",
+                    donorsInfo: []
+                }
+                this.createProgramDialogVisible = true
+            },
+            openEventsInfoDialog(row){
+                this.currentProgramId = row.programId
+                if(window.XMLHttpRequest){
+                    var httpRequest3 = new XMLHttpRequest();
+                    }else{
+                        var httpRequest3 = new ActiveXObject("Microsoft.XMLHTTP");
+                    };
+                httpRequest3.open('POST', url + '/event/allevent/', true);
+                httpRequest3.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest3.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify({id: this.currentProgramId})
+                httpRequest3.send(para)
+                let code = 200
+                let msg = ""
+                httpRequest3.onreadystatechange = function () { 
+                    if (httpRequest3.readyState == 4 && httpRequest3.status == 200) {  
+                        var json = JSON.parse(httpRequest3.responseText);   
+                        code = json.code
+                        msg = json.msg
+                        app._data.eventList = []
+                        if(JSON.stringify(json.data) !="{}")
+                        {
+                            json.data.forEach(item=>{
+                            app._data.eventList.push({
+                                eventId: item.id,
+                                title: item.title,
+                                startTime: item.start,
+                                endTime: item.end,
+                                place: item.place,
+                                amountOfFund: item.amount_of_fund,
+                                requiredVolunteersNumber: item.require_volunteers_number,
+                                volunteersNumberSoFar: item.now_volunteers_number,
+                                description: item.description,
+                                status: item.status,
+                                programBelongsTo: item.program,
+                                volunteersInfo: item.info_volunteer,
+                                donorsInfo: item.info_donor})
+                            })
+                        }
+                        app._data.eventsInfoDialogVisible = true
+                    }
+                }
+            },
+            openDonorsInfoDialog(row){
+                this.donorsInfoDialogVisible = true
+            },
+            openEditEventsDialog(row){
+                this.editEventsDialogVisible = true
+            },
+            deleteTheProgram(row){
+                let target = row.programId
+                let data = {id: target, status: '2'}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/event/status/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Delete Program successfully!')
+                        }
+                    }
+                }
+            },
+            recoverProgram(row){
+                let target = row.programId
+                let data = {id: target, status: '0'}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/event/status/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Delete Program successfully!')
+                        }
+                    }
+                }
+            },
+            // createNewProgram(){
+            //     let res = createProgram({
+            //         "title": this.newProgram.title
+            //     })
+            //     if (res.code == 200){
+            //         this.$message('Create program successfully!')
+            //     }
+            // }
+            openEventDetailDialog(row){
+                //getEventDetail
+                    let target = row.eventId
+                    let data = {id: target}
+                    this.eventDetail.event_id = row.eventId
+                    if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                    }else{
+                        var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                    };
+                    httpRequest.open('POST', url + '/event/getinfo/', true);
+                    httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                    httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                    var para = JSON.stringify(data)
+                    let code = 200
+                    let msg = ""
+                    httpRequest.send(para)
+                    httpRequest.onreadystatechange = function () { 
+                        if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                            var json = JSON.parse(httpRequest.responseText);   
+                            code = json.code
+                            if (code == 200){
+                                app._data.eventDetail.volunteersInfo = json.data.info_volunteer
+                                app._data.eventDetail.donorsInfo = json.data.info_donor
+                                app._data.eventDetailDialogVisible = true
+                            }
+                        }
+                    }
+                },
+            deleteVolunteerFromEvent(row){
+                let user_id = row.user_id
+                let event_id = this.eventDetail.event_id
+                let data = {user_id: user_id, event_id: event_id}
+                if(window.XMLHttpRequest){
+                var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/event/quit/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Delete Successfully.')
+                        }
+                    }
+                }
+
+            },
+            finishEvent(row){
+                let target = row.eventId
+                let data = {id: target, status: '1'}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/event/status/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Delete Event successfully!')
+                        }
+                    }
+                }
+            },
+            deleteEvent(row){
+                let target = row.eventId
+                let data = {id: target, status: '2'}
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/event/status/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Delete Event successfully!')
+                        }
+                    }
+                }
+            },
+            createNewProgram(){
+                let data = {
+                    "title": this.newProgram.title
+                }
+                if(window.XMLHttpRequest){
+                    var httpRequest = new XMLHttpRequest();
+                }else{
+                    var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                };
+                httpRequest.open('POST', url + '/event/newprogram/', true);
+                httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                var para = JSON.stringify(data)
+                let code = 200
+                let msg = ""
+                httpRequest.send(para)
+                httpRequest.onreadystatechange = function () { 
+                    if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                        var json = JSON.parse(httpRequest.responseText);   
+                        code = json.code
+                        if (code == 200){
+                            app.$message.success('Create program successfully!')
+                            app._data.createProgramDialogVisible = false
+                        }
+                    }
+                }
+            }
+        },
+        watch: {},
+        
+        created: function(){
+                            let query = {id: localStorage.getItem("user")}
+                            if(window.XMLHttpRequest){
+                                var httpRequest = new XMLHttpRequest();
+                            }else{
+                                var httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                            };
+                            httpRequest.open('POST', url + "/user/getuser/",true);
+                            httpRequest.setRequestHeader("Content-type","application/json;charset-UTF-8");
+                            httpRequest.setRequestHeader("token", localStorage.getItem('token'));
+                            var para = JSON.stringify(query)
+                            httpRequest.send(para)
+                            let code = 200
+                            let msg = ""
+                            httpRequest.onreadystatechange = ()=> { 
+                                if (httpRequest.readyState == 4 && httpRequest.status == 200) {  
+                                    var json = JSON.parse(httpRequest.responseText);   
+                                    code = json.code
+                                    msg = json.msg
+                                    if (code == 200){
+                                        let data = json.data
+                                        app._data.myInfo = {
+                                        userId: localStorage.getItem("user"),
+                                        firstName: data.first_name,
+                                        lastName: data.last_name,
+                                        role: localStorage.getItem("role"),
+                                        volunteerTime: data.working_hours,
+                                        volunteerEvents: [],
+                                        donationAmount: data.donor_amount,
+                                        donationInfo: [],
+                                        status: "0"
+                                        }
+                                    }
+                                }
+                            }
+                            this.userList.forEach(user=>{
+                            this.allUserList.push(user)
+            })
+        }
+    })
+</script>
+</html>
